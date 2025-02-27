@@ -1,0 +1,283 @@
+<?php
+
+Use Drupal\user\Entity\User;
+use Drupal\Core\Form\FormStateInterface;
+use \Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Mail\MailManagerInterface;
+use Drupal\Component\Utility\SafeMarkup;
+use Drupal\Component\Utility\Html;
+use Drupal\webform\Entity\Webform;
+use Drupal\webform\Entity\WebformSubmission;
+use Drupal\webform\WebformSubmissionForm;
+use Drupal\block\Entity\Block;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Access\AccessResult;
+
+  /* diagnostic-toolkit webform: To show the progress bar title div if more than 10 items */
+  function diagnostic_toolkit_theme_registry_alter(&$theme_registry) {
+    $theme_registry['webform_progress_bar']['variables']['max_pages'] = '20';
+    $theme_registry['webform_progress_tracker']['variables']['max_pages'] = '20';
+  }
+  
+  function diagnostic_toolkit_form__role_login_page_form_alter(&$form, FormStateInterface $form_state) {
+    $form['#attributes'] = array('class' => 'floating_form user_login_form');
+    $current_path = \Drupal::service('path.current')->getPath();
+    if ($current_path == '/user/diagnostic-toolkit/login') {      
+      $form['register_pass'] = [
+        '#markup' => '<div id="login-bottom-blocks" class="login-bottom-links"><div class="forgot-pass-link"><a href="/user/password?destination=/user/diagnostic-toolkit/login">' . t('Forgot password') . '</a></div></div>',
+        '#allowed_tags' => ['div', 'a'],
+        '#weight' => 50,
+      ];
+    }
+  }
+
+  function diagnostic_toolkit_form_user_pass_alter(&$form, FormStateInterface $form_state) {
+    $prevPath = '';
+    $dest = \Drupal::request()->get('destination');
+    if(isset($dest)) {
+      $prevPath = $dest;
+    }
+    elseif (isset($_SERVER['HTTP_REFERER'])) {
+      $prevUrl = $_SERVER['HTTP_REFERER'];
+      $prevPath = parse_url($prevUrl, PHP_URL_PATH);
+    }
+    $form['#action'] = $form['#action'] . '?destination=' . $prevPath;
+    $form['#attributes'] = array('class' => 'floating_form pass_reset_form');
+  }
+  
+  function diagnostic_toolkit_form_user_register_form_alter(&$form, FormStateInterface $form_state, $form_id) {   
+    $form['#attributes'] = array('class' => 'floating_form user_register_form'); 
+	  $form['field_first_name_dt']['#prefix'] = "<div class='dt-title-text sub_heading'>About You</div>";
+    $current_path = \Drupal::service('path.current')->getPath();
+    if ($current_path == '/user/register/diagnostic_toolkit') {
+      if ($form_state->getFormObject()->getEntity()->isNew()) {
+        $form['account']['name']['#value'] = 'email_registration_' . user_password();
+      }
+    }
+    else {
+      unset($form['account']['roles']['#options']['diagnostic_toolkit']);
+    }
+    
+  }
+  function diagnostic_toolkit_form_user_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+   /* adding class to DT user edit page */
+    if ($form['#form_id'] == 'user_form') {
+	    $current_path = \Drupal::service('path.current')->getPath(); 
+      $result = \Drupal::service('path_alias.manager')->getAliasByPath($current_path);
+      $args = explode("/",$result);
+      if (isset($args[2])) {
+        $uid = $args[2];
+        $user = User::load($uid);
+        $roles = $user->getRoles();
+        if (in_array('diagnostic_toolkit', $roles)) {
+          $form['#attributes'] = array('class' => 'floating_form user_edit_form');
+        }
+        else {
+          unset($form['account']['roles']['#options']['diagnostic_toolkit']);
+        }
+	    }
+    }
+  }
+    
+  /* Update Emaild as Username for Diagnostic Toolkit register page before submitting */
+  function diagnostic_toolkit_user_presave(EntityInterface $user) {      
+     $email = $user->getEmail();
+     $roles = $user->getRoles();
+     if (in_array('diagnostic_toolkit', $roles)) {
+        if ($email != '') {
+          $user->set('name', $email);
+        }
+    }
+  }
+
+/**
+ * Implements hook_menu_local_tasks_alter().
+ */
+function diagnostic_toolkit_menu_local_tasks_alter(&$data, $route_name) {
+
+  $roles = \Drupal::currentUser()->getRoles();
+  $current_path = \Drupal::service('path.current')->getPath();
+  if ($current_path == '/user/login') {
+    unset($data['tabs'][0]['user.register']);
+  }
+  if ($current_path == '/user/password') {
+    unset($data['tabs'][0]['user.register']);
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function diagnostic_toolkit_form_alter(&$form, FormStateInterface $form_state, $form_id) {	
+  /* Save Draft button label change in DT webform */
+  if ($form['#form_id'] == 'webform_submission_diagnostic_toolkit_add_form') {
+    $form_object = $form_state->getFormObject();
+    $webform_submission = $form_object->getEntity();
+    $current_page = $webform_submission->getCurrentPage();
+    if($current_page == 'building_the_narrative' || $current_page == '') {
+      $form['actions']['wizard_next']['#prefix'] =  '<a href="/diagnostic-toolkit-and-sustainable-finance-roadmaps" class="webform-button--previous btn button">Previous</a>';// Add markup before form item
+    }
+    if($current_page == 'innovations_interventions') {
+      $form['actions']['wizard_next']['#value'] = 'Submit';
+    }
+	  $form['actions']['draft']['#value'] = 'SAVE PROGRESS';
+  }
+  if ($form['#form_id'] == 'webform_submission_diagnostic_toolkit_edit_form') {
+   $form_object = $form_state->getFormObject();
+   $webform_submission = $form_object->getEntity();
+   $current_page = $webform_submission->getCurrentPage();
+   $current_page_param = \Drupal::request()->query->get('page');
+   $pages = $form['pages'];
+    foreach($pages as $key => $value) {
+      if($key != 'confirmation') {
+        if(isset($value['#page'])) {
+          $form['pages'][$key]['#submit'][] = 'dt_custom_webform_update_handler';
+        }
+      }
+    }
+    
+    if($current_page == 'building_the_narrative' || $current_page == 'webform_confirmation') {
+      $form['actions']['wizard_next']['#prefix'] =  '<a href="/diagnostic-toolkit-and-sustainable-finance-roadmaps" class="webform-button--previous btn button">Previous</a>';// Add markup before form item
+    }
+    if($current_page == 'innovations_interventions') {
+      $form['actions']['wizard_next']['#value'] = 'Submit';
+    }
+    $form['actions']['#suffix'] = '<div class="submit-alert-for-users">Please click the “SUBMIT” button on step 10 to save your data.</div>';
+    $form['actions']['wizard_next']['#submit'][] = 'dt_custom_webform_update_handler';
+    $form['actions']['wizard_prev']['#submit'][] = 'dt_custom_webform_update_handler';
+  }
+}
+
+
+/**
+ * Form element #after_build callback: Add form id as hash to the form's action.
+ */
+function dt_custom_webform_update_handler($form, &$form_state) {
+  $form_object = $form_state->getFormObject();
+  $webform_submission = $form_object->getEntity();
+  $submission_data = $webform_submission->getData();
+  $sid = $webform_submission->id();
+ 
+  /** @var \Drupal\webform\WebformSubmissionInterface $webform_submission */
+  $webform_submission_data = \Drupal\webform\entity\WebformSubmission::load($sid);
+  foreach($submission_data as $key => $value) {
+    $webform_submission_data->setElementData($key, $value);
+    $webform_submission_data->save();
+  }
+}
+
+/**
+ * Altering mail.
+ */
+function diagnostic_toolkit_mail_alter(&$message) {
+  global $base_url;
+  $loginlink = $base_url."/user/diagnostic-toolkit/login";
+  $mail = \Drupal::config('system.site')->get('mail');
+  $mailid = $message['id'];
+  $from = "contact@greenfinanceplatform.org";
+
+  if ($mailid == "user_register_no_approval_required") {
+    $messagebody = $message['body'][0];
+    $recipient = $message['to'];			
+    $users = \Drupal::entityTypeManager()->getStorage('user')->loadByProperties(['mail' => $recipient]);
+    $user = reset($users);
+    if ($user) {
+      $uid = $user->id();
+      $rids = $user->getRoles();
+      $first_name = $user->field_first_name_dt->value;
+      $last_name = $user->field_last_name_dt->value;
+      $name = $first_name." ".$last_name;
+    }
+    if (in_array('diagnostic_toolkit', $rids)) {
+      $message['from'] = $from;
+      $message['headers']['From'] = $from;
+      $message['headers'] = array_change_key_case($message['headers']);
+      unset($message['headers']['sender']);
+      unset($message['headers']['reply-to']);
+    // Reset body.
+      $message['body'] = [];
+      $new_body = 'Hello '.$name.','. "<br/><br/>" .
+      'You have been successfully registered for the Toolkit. Please login using the below link'."<br/><br/>".$loginlink."<br/><br/>".'--  Green Finance Platform team';
+      $message['body'][] = $new_body; 
+      $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed; delsp=yes';	
+    }
+
+    
+  } 
+}
+
+/**
+ * Implements hook_update().
+ */
+function diagnostic_toolkit_update_8001() {
+
+  /** @var \Drupal\webform\Plugin\WebformHandlerManagerInterface $handler_manager */
+  $handler_manager = \Drupal::service('plugin.manager.webform.handler');
+  $webformStorage = \Drupal::entityTypeManager()->getStorage('webform');
+
+  // Define webform handler configuration.
+  $handlerConfiguration = [
+    'id' => 'update_wizard_element_based_on_sub_element',
+    'label' => 'Update wizard element based on sub element',
+    'handler_id' => 'update_wizard_element_based_on_sub_element',
+    'status' => 1,
+    'weight' => 1,
+    'settings' => [],
+  ];
+
+  foreach ($webformStorage->loadMultiple() as $webform) {
+    $webformIds = ['diagnostic_toolkit'];
+    if (in_array($webform->id(), $webformIds, TRUE)) {
+      $handler = $handler_manager->createInstance('update_wizard_element_based_on_sub_element', $handlerConfiguration);
+      $webform->setOriginalId($webform->id());
+      $webform->addWebformHandler($handler);
+    }
+  }
+}
+
+
+/**
+ * Implements hook_preprocess_HOOK().
+ */
+function diagnostic_toolkit_preprocess_webform_progress_tracker(&$variables) {
+  /** @var \Drupal\webform\WebformInterface $webform */
+  $webform = $variables['webform'];
+  /** @var \Drupal\webform\WebformSubmissionInterface $webform_submission */
+  $webform_submission = $variables['webform_submission']; 
+  
+  $database = \Drupal::database();
+  $uid = \Drupal::currentUser()->id();
+  $sid = $database->select('webform_submission', 'w')
+      ->fields('w', ['sid'])
+      ->condition('uid', $uid, '=')
+      ->condition('webform_id', 'diagnostic_toolkit', '=')
+      ->execute()
+      ->fetchField();
+  $submitted_data = $database->select('webform_submission_data', 's')
+      ->fields('s', ['name', 'value'])
+      ->condition('sid', $sid, '=')
+      ->execute()
+      ->fetchAllKeyed(0,1);
+
+  // Get navigation webform settings.
+  $forward_navigation = $webform->getThirdPartySetting('webformnavigation', 'forward_navigation');
+  // Set default forward navigation settings.
+  if ($forward_navigation && !empty($webform_submission)) {
+    $pages = $webform->getPages($variables['operation'], $webform_submission);
+    // Get the logged errors for the form.
+    /** @var \Drupal\webformnavigation\WebformNavigationHelper $webformnavigation_helper */
+    $webformnavigation_helper = Drupal::service('webformnavigation.helper');
+    $current_errors = $webformnavigation_helper->getErrors($webform_submission);
+    // Iterate through the pages and set appropriate page classes.
+    foreach ($pages as $key => $page) {
+      // Add the default class for the page.
+      if($submitted_data['' . $key . '_elements_status'] == 1) {
+      $variables['page_classes'][$key][] = 'partially-completed';
+      }
+      elseif($submitted_data['' . $key . '_elements_status'] == 2) {
+        $variables['page_classes'][$key][] = 'completed';
+      }      
+    }
+  }
+}
+

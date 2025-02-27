@@ -1,0 +1,16 @@
+services:
+    customredirect_event_subscriber:
+        class: Drupal\ggkp_custom\EventSubscriber\RequestHandler
+        tags:
+            - {name: event_subscriber}
+    ggkp_custom.twig.TwigExtension:
+        class: Drupal\ggkp_custom\TwigExtension
+        tags: 
+            - {name: twig.extension} 
+    ggkp_custom.breadcrumb:
+        class: Drupal\ggkp_custom\Breadcrumb\GGKPCustomBreadcrumbBuilder
+        tags:
+            - { name: breadcrumb_builder, priority: 1505 }
+ 
+    ggkp_custom.fullcalendarview_preprocess:
+        class: Drupal\ggkp_custom\FullCalendar\CustomFullcalendarViewPreprocess

@@ -1,0 +1,76 @@
+ggkp_custom.ajax_load:
+  path: '/events_ajax_load/{nid}/{view_id}/{block_id}'
+  defaults:
+    _controller: '\Drupal\ggkp_custom\Controller\GgkpCustomController::Render'
+  requirements:
+    _access: 'TRUE'
+
+ggkp_custom.taxonomy_cleanup:
+  path: '/taxonomy-cleanup'
+  defaults:
+    _controller: '\Drupal\ggkp_custom\Controller\TaxonomyCleanupController::index'
+    _title: 'Taxonomy Cleanup'
+  options:
+    no_cache: 'TRUE'
+  requirements:
+    _access: 'TRUE'
+
+ggkp_custom.ggkp_organisation_patch:
+  path: '/set-ggkp-organisation-to-nodes'
+  defaults:
+    _controller: '\Drupal\ggkp_custom\Controller\GGKPOrganisationPatchController::index'
+    _title: 'GGKP Organisation Patch'
+  options:
+    no_cache: 'TRUE'
+  requirements:
+    _access: 'TRUE'
+
+ggkp_custom.gef_shorts_contents:
+  path: '/set-gef-shorts-contents'
+  defaults:
+    _controller: '\Drupal\ggkp_custom\Controller\GEFShortsController::index'
+    _title: 'GEF Shorts Contents'
+  options:
+    no_cache: 'TRUE'
+  requirements:
+    _access: 'TRUE'
+
+ggkp_custom.ggkp_domain_source_patch:
+  path: '/set-domain-source'
+  defaults:
+    _controller: '\Drupal\ggkp_custom\Controller\DomainSourceValueSetController::index'
+    _title: 'GGKP Domain Source Patch'
+  options:
+    no_cache: 'TRUE'
+  requirements:
+    _access: 'TRUE'
+
+ggkp_custom.change_node_content_type:
+  path: '/change-node-content-type'
+  defaults:
+    _controller: '\Drupal\ggkp_custom\Controller\SplitToolsAndPlatformsController::change_node_content_type'
+    _title: 'Split Content Type'
+  options:
+    no_cache: 'TRUE'
+  requirements:
+    _access: 'TRUE'
+
+ggkp_custom.change_other_node_content_type:
+  path: '/change-other-node-content-type'
+  defaults:
+    _controller: '\Drupal\ggkp_custom\Controller\SplitToolsAndPlatformsController::change_other_node_content_type'
+    _title: 'Change Content Type'
+  options:
+    no_cache: 'TRUE'
+  requirements:
+    _access: 'TRUE'
+
+ggkp_custom.set_initiatives:
+  path: '/set-initiatives/{initiative_id}'
+  defaults:
+    _controller: '\Drupal\ggkp_custom\Controller\SetInitiativeController::setInitiative'
+    _title: 'Set Inititive'
+  options:
+    no_cache: 'TRUE'
+  requirements:
+    _access: 'TRUE'
