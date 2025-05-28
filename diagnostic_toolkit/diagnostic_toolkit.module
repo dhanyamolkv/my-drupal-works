@@ -174,7 +174,7 @@ function diagnostic_toolkit_mail_alter(&$message) {
   $loginlink = $base_url."/user/diagnostic-toolkit/login";
   $mail = \Drupal::config('system.site')->get('mail');
   $mailid = $message['id'];
-  $from = "contact@greenfinanceplatform.org";
+  $from = "test@gmail.com";
 
   if ($mailid == "user_register_no_approval_required") {
     $messagebody = $message['body'][0];
@@ -197,7 +197,7 @@ function diagnostic_toolkit_mail_alter(&$message) {
     // Reset body.
       $message['body'] = [];
       $new_body = 'Hello '.$name.','. "<br/><br/>" .
-      'You have been successfully registered for the Toolkit. Please login using the below link'."<br/><br/>".$loginlink."<br/><br/>".'--  Green Finance Platform team';
+      'You have been successfully registered for the Toolkit. Please login using the below link'."<br/><br/>".$loginlink."<br/><br/>";
       $message['body'][] = $new_body; 
       $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed; delsp=yes';	
     }
