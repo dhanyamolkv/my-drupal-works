@@ -1,6 +1,0 @@
-name: GGKP custom module
-type: module
-description: Custom module for GGKP
-package: Custom
-core: 8.x
-core_version_requirement: ^8 || ^9
